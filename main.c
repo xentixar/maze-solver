@@ -18,11 +18,37 @@ typedef struct Node
     bool wall;
     bool visited;
     struct Node* parent;
+    Color color;
 } Node;
 
 Node* grid[ROWS][COLS];
 Node* startNode = NULL;
 Node* endNode = NULL;
+
+Node* stack[ROWS * COLS];
+int stackTop = -1;
+bool searchComplete = false;
+
+bool isStackEmpty()
+{
+    return stackTop < 0;
+}
+
+void push(Node* node)
+{
+    stack[++stackTop] = node;
+}
+
+Node* pop()
+{
+    if(isStackEmpty()) return NULL;
+    return stack[stackTop--];
+}
+
+bool isInBounds(int x, int y)
+{
+    return x >= 0 && y >= 0 && x < ROWS && y < COLS;
+}
 
 void generateMaze()
 {
@@ -36,6 +62,7 @@ void generateMaze()
             grid[i][j]->wall = (rand() % 5 == 0);
             grid[i][j]->visited = false;
             grid[i][j]->parent = NULL;
+            grid[i][j]->color = grid[i][j]->wall ? BROWN : GRAY;
         }
     }
 
@@ -43,6 +70,10 @@ void generateMaze()
     endNode = grid[ROWS - 2][COLS - 1];
     startNode->wall = false;
     endNode->wall = false;
+    startNode->color = BLUE;
+    endNode->color = RED;
+
+    push(startNode);
 }
 
 void drawMaze()
@@ -51,24 +82,54 @@ void drawMaze()
     {
         for(int j = 0; j < COLS; j++)
         {
-            Color color = GRAY;
-
-            if(grid[i][j]->wall)
-            {
-                color = BROWN;
-            }
-            else if(grid[i][j] == startNode)
-            {
-                color = BLUE;
-            }
-            else if(grid[i][j] == endNode)
-            {
-                color = RED;
-            }
-
-
-            DrawRectangle(i * GRID_SIZE, j * GRID_SIZE, GRID_SIZE - 1, GRID_SIZE - 1, color);
+            DrawRectangle(i * GRID_SIZE, j * GRID_SIZE, GRID_SIZE - 1, GRID_SIZE - 1, grid[i][j]->color);
         }
+    }
+}
+
+void depthFirstSearch()
+{
+    if(searchComplete || isStackEmpty()) return;
+
+    Node* current = pop();
+    if(!current || current->visited || current->wall) return;
+    
+    current->visited = true;
+
+    if(current == endNode)
+    {
+        searchComplete = true;
+        return;
+    }
+    
+    int dx[] = {0, 1, 0, -1};
+    int dy[] = {-1, 0, 1, 0};
+
+    for(int i = 0; i < 4; i++)
+    {
+        int nx = current->x + dx[i];
+        int ny = current->y + dy[i];
+
+        if(!isInBounds(nx, ny)) return;
+
+        Node* neighbour = grid[nx][ny];
+
+        if(!neighbour->visited && !neighbour->wall)
+        {
+            neighbour->parent = current;
+            push(neighbour);
+            neighbour->color = YELLOW;
+        }
+    }
+}
+
+void drawPath(Node* node)
+{
+    Node* current = node;
+    while(current != NULL && current != startNode)
+    {
+        DrawRectangle(current->x * GRID_SIZE, current->y * GRID_SIZE, GRID_SIZE - 1 , GRID_SIZE - 1, GREEN);
+        current = current->parent;
     }
 }
 
@@ -83,9 +144,18 @@ int main(int argc, char *argv[])
     {
         BeginDrawing();
         ClearBackground(WHITE);
-
+        
+        depthFirstSearch();
         drawMaze();
+
+        if(searchComplete)
+        {
+            drawPath(endNode);
+        }
+        
         EndDrawing();
+
+        usleep(1000000);
     }
 
     return EXIT_SUCCESS;
